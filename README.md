@@ -16,7 +16,7 @@
 # Progressive Profile Completion Node
 ForgeRock Progressive Profile Completion Authentication Tree Node
 
-An authentication node for ForgeRock's [Identity Platform][forgerock_platform] 6.5.2 and above. This node integrates ForgeRock Identity Management's (IDM) progressive profile completion with ForgeRock Access Management's (AM) intelligent authentication framework. Build authentication trees and progressively build our your users' profiles by sporadically asking them for additional information or to confirm existing settings, all based on the Progressive Profile Completion (PPC) settings in IDM.
+An authentication node for ForgeRock's [Identity Platform][forgerock_platform] 6.5.2 and above. This node integrates ForgeRock Identity Management's (IDM) progressive profile completion with ForgeRock Access Management's (AM) intelligent authentication framework. Build authentication trees and progressively build out your users' profiles by sporadically asking them for additional information or to confirm existing settings, all based on the Progressive Profile Completion (PPC) settings in IDM.
 
 
 Download a release build fom the *release* tab or clone this repository to build your own release. Copy the .jar file from your download location or the *./target* directory (if you built it yourself) into the *../web-container/webapps/openam/WEB-INF/lib* directory where AM is deployed.  Restart the web container to pick up the new node.  The node will then appear in the authentication trees components palette.
