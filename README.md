@@ -13,13 +13,17 @@
  *
  * Copyright 2019 ForgeRock AS.
 -->
-# ProgressiveProfileCompletion
+# Progressive Profile Completion Node
 ForgeRock Progressive Profile Completion Authentication Tree Node
 
 An authentication node for ForgeRock's [Identity Platform][forgerock_platform] 6.5.2 and above. This node integrates ForgeRock Identity Management's (IDM) progressive profile completion with ForgeRock Access Management's (AM) intelligent authentication framework. Build authentication trees and progressively build our your users' profiles by sporadically asking them for additional information or to confirm existing settings, all based on the Progressive Profile Completion (PPC) settings in IDM.
 
 
 Download a release build fom the *release* tab or clone this repository to build your own release. Copy the .jar file from your download location or the *./target* directory (if you built it yourself) into the *../web-container/webapps/openam/WEB-INF/lib* directory where AM is deployed.  Restart the web container to pick up the new node.  The node will then appear in the authentication trees components palette.
+
+
+## Related Nodes
+- <a href="https://github.com/vscheuber/TermsAndConditionsNode">Terms And Conditions Node</a>
 
 
 ## Usage
@@ -48,6 +52,33 @@ IDM User Password | Enter the password of the IDM account.
 ## Building Authentication Nodes
 The code in this repository has binary dependencies that live in the ForgeRock maven repository. Maven can be configured to authenticate to this repository by following the following [ForgeRock Knowledge Base Article](https://backstage.forgerock.com/knowledge/kb/article/a74096897).
         
+```json
+{
+    "name": "INTERNAL_USER",
+    "properties": {
+        "queryId": "credential-internaluser-query",
+        "queryOnResource": "internal/user",
+        "propertyMapping": {
+            "authenticationId": "username",
+            "userCredential": "password",
+            "userRoles": "authzRoles"
+        },
+        "defaultUserRoles": [],
+        "runAsProperties": {
+            "adminRoles": [
+                "internal/role/openidm-admin"
+            ],
+            "disallowedRunAsRoles": [],
+            "queryOnResource": "managed/user",
+            "propertyMapping": {
+                "authenticationId": "username",
+                "userRoles": "authzRoles"
+            }
+        }
+    },
+    "enabled": true
+}
+```
 
 
 The code described herein is provided on an "as is" basis, without warranty of any kind, to the fullest extent permitted by law. ForgeRock does not warrant or guarantee the individual success developers may have in implementing the sample code on their development platforms or in production configurations.
