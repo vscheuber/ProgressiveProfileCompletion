@@ -444,28 +444,28 @@ public class ProgressiveProfileCompletionNode implements Node {
     
     private String createScript(JSONArray attributes) {
     	StringBuffer script = new StringBuffer()
-    	.append("var callbackScript = document.createElement(\"script\");\n")
-    	.append("callbackScript.type = \"text/javascript\";\n")
-    	.append("callbackScript.text = \"function completed() { document.querySelector(\\\"input[type=submit]\\\").click(); }\";\n")
-		.append("document.body.appendChild(callbackScript);\n")
-		.append("\n")
-		.append("submitted = true;\n")
-    	.append("\n")
-    	.append("var decodeHTML = function (html) {\n")
-    	.append("	var txt = document.createElement('textarea');\n")
-    	.append("	txt.innerHTML = html;\n")
-    	.append("	return txt.value;\n")
-    	.append("};")
-    	.append("\n")
-    	.append("function callback() {\n")
-    	.append("\n")
-    	.append("    var title = document.getElementById('callback_1');\n")
-    	.append("    title.className = \"0 h1\";\n")
-    	.append("    title.align = \"center\";\n")
-    	.append("\n")
-    	.append("    var message = document.getElementById('callback_2');\n")
-    	.append("    message.className = \"0 h3\";\n")
-    	.append("    message.align = \"center\";\n");
+	    	.append("var callbackScript = document.createElement(\"script\");\n")
+	    	.append("callbackScript.type = \"text/javascript\";\n")
+	    	.append("callbackScript.text = \"function completed() { document.querySelector(\\\"input[type=submit]\\\").click(); }\";\n")
+			.append("document.body.appendChild(callbackScript);\n")
+			.append("\n")
+			.append("submitted = true;\n")
+	    	.append("\n")
+	    	.append("var decodeHTML = function (html) {\n")
+	    	.append("	var txt = document.createElement('textarea');\n")
+	    	.append("	txt.innerHTML = html;\n")
+	    	.append("	return txt.value;\n")
+	    	.append("};")
+	    	.append("\n")
+	    	.append("function callback() {\n")
+	    	.append("\n")
+	    	.append("    var title = document.getElementById('callback_1');\n")
+	    	.append("    title.className = \"0 h1\";\n")
+	    	.append("    title.align = \"center\";\n")
+	    	.append("\n")
+	    	.append("    var message = document.getElementById('callback_2');\n")
+	    	.append("    message.className = \"0 h3\";\n")
+	    	.append("    message.align = \"center\";\n");
     	
     	// generate code for callback fields
     	// callback_0: script
@@ -475,11 +475,12 @@ public class ProgressiveProfileCompletionNode implements Node {
 		for (int i = 0; i < attributes.length(); i++) {
 			try {
 				JSONObject attribute = attributes.getJSONObject(i);
-				
-				script
-		    	.append("\n")
-		    	.append("    var ppc_field_").append(i+3).append(" = document.getElementsByName('callback_").append(i+3).append("')[0];\n")
-		    	.append("    ppc_field_").append(i+3).append(".value = \"").append(attribute.get("value")).append("\";\n");
+				// only set non-null values
+				if ( "null" != attribute.getString("value"))
+					script
+				    	.append("\n")
+				    	.append("    var ppc_field_").append(i+3).append(" = document.getElementsByName('callback_").append(i+3).append("')[0];\n")
+				    	.append("    ppc_field_").append(i+3).append(".value = \"").append(attribute.get("value")).append("\";\n");
 			} catch (JSONException e) {
 	            debug.error("[" + DEBUG_FILE + "]: createScript: " + e.getMessage());
 	        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
@@ -487,13 +488,13 @@ public class ProgressiveProfileCompletionNode implements Node {
 		}
     	
     	script
-    	.append("}\n")
-		.append("\n")
-		.append("if (document.readyState !== 'loading') {\n")
-		.append("  callback();\n")
-		.append("} else {\n")
-		.append("  document.addEventListener(\"DOMContentLoaded\", callback);\n")
-		.append("}");
+	    	.append("}\n")
+			.append("\n")
+			.append("if (document.readyState !== 'loading') {\n")
+			.append("  callback();\n")
+			.append("} else {\n")
+			.append("  document.addEventListener(\"DOMContentLoaded\", callback);\n")
+			.append("}");
     	return script.toString();
     }
     
