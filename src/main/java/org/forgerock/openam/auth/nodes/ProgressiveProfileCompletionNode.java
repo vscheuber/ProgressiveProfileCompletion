@@ -424,8 +424,14 @@ public class ProgressiveProfileCompletionNode implements Node {
 		    		JSONArray attributes = response.getJSONObject("requirements").getJSONArray("attributes");
 		    		for (int i = 0; i < attributes.length(); i++) {
 						JSONObject attribute = attributes.getJSONObject(i);
-						map.put(attribute.getJSONObject("schema").getString("description"), attribute.getString("name"));
-						callbacks.add(new NameCallback(attribute.getJSONObject("schema").getString("description"), attribute.getString("value")));
+						String prompt = attribute.getJSONObject("schema").getString("description");
+						String defaultName = attribute.getString("value");
+			            debug.error("[" + DEBUG_FILE + "]: createPPCCallbacks: Adding NameCallback with prompt=" + prompt + " and defaultName=" + defaultName);
+						map.put(prompt, attribute.getString("name"));
+			    		if (null==defaultName || defaultName.length()==0)
+			    			callbacks.add(new NameCallback(prompt));
+			    		else
+			    			callbacks.add(new NameCallback(prompt, defaultName));
 					}
 		    		context.sharedState.put(PPC_MAP_KEY, map);
 					callbacks.add(new ConfirmationCallback(ConfirmationCallback.INFORMATION, new String[]{confirm, "Cancel"}, 0));
@@ -436,8 +442,7 @@ public class ProgressiveProfileCompletionNode implements Node {
 		    		callbacks.add(0, scriptAndSelfSubmitCallback);
 	        }
 		} catch (JSONException e) {
-            debug.error("[" + DEBUG_FILE + "]: createPPCCallbacks: " + e.getMessage());
-        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
+            debug.error("[" + DEBUG_FILE + "]: createPPCCallbacks: " + e.getMessage(), e);
 		}
     	return callbacks;
     }
