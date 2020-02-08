@@ -19,14 +19,9 @@ package org.forgerock.openam.auth.nodes;
 import java.util.Collections;
 import java.util.Map;
 
-import javax.inject.Inject;
-
 import org.forgerock.openam.auth.node.api.AbstractNodeAmPlugin;
 import org.forgerock.openam.auth.node.api.Node;
 import org.forgerock.openam.plugins.PluginException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 /**
@@ -62,7 +57,7 @@ import org.slf4j.LoggerFactory;
  */
 public class ProgressiveProfileCompletionNodePlugin extends AbstractNodeAmPlugin {
 
-	static private String currentVersion = "1.0.0";
+	static private String currentVersion = "1.0.1";
 	
     /** 
      * Specify the Map of list of node classes that the plugin is providing. These will then be installed and
@@ -85,19 +80,6 @@ public class ProgressiveProfileCompletionNodePlugin extends AbstractNodeAmPlugin
 	@Override
 	public void onInstall() throws PluginException {
 		super.onInstall();
-	}
-
-    /** 
-     * Handle plugin startup. This method will be called every time AM starts, after {@link #onInstall()},
-     * {@link #onAmUpgrade(String, String)} and {@link #upgrade(String)} have been called (if relevant).
-     * 
-     * No need to implement this unless your AuthNode has specific requirements on startup.
-     *
-     * @param startupType The type of startup that is taking place.
-     */
-	@Override
-	public void onStartup() throws PluginException {
-		super.onStartup();
 	}
 
     /** 

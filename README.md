@@ -24,6 +24,7 @@ Download a release build fom the *release* tab or clone this repository to build
 
 ## Related Nodes
 - <a href="https://github.com/vscheuber/TermsAndConditionsNode">Terms And Conditions Node</a>
+- <a href="https://github.com/vscheuber/HTMLMessageNode">HTML Message Node</a>
 
 
 ## Usage
@@ -51,7 +52,11 @@ IDM User Password | Enter the password of the IDM account.
 
 ## Building Authentication Nodes
 The code in this repository has binary dependencies that live in the ForgeRock maven repository. Maven can be configured to authenticate to this repository by following the following [ForgeRock Knowledge Base Article](https://backstage.forgerock.com/knowledge/kb/article/a74096897).
-        
+
+
+## IDM RunAs Configuration
+The following JSON configuration snippet shows what you need to make this node work in your environment. The essential part is the `runAsProperties` object. Add that object under `properties` of your `INTERNAL_USER` block in your `authentication.json` file.
+
 ```json
 {
     "name": "INTERNAL_USER",

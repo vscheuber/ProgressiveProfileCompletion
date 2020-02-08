@@ -20,16 +20,11 @@ package org.forgerock.openam.auth.nodes;
 import static org.forgerock.openam.auth.node.api.SharedStateConstants.USERNAME;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -40,7 +35,6 @@ import javax.inject.Inject;
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.ConfirmationCallback;
 import javax.security.auth.callback.NameCallback;
-import javax.security.auth.callback.TextInputCallback;
 import javax.security.auth.callback.TextOutputCallback;
 
 import org.forgerock.json.JsonPointer;
@@ -50,7 +44,6 @@ import org.forgerock.openam.auth.node.api.Action;
 import org.forgerock.openam.auth.node.api.Node;
 import org.forgerock.openam.auth.node.api.NodeProcessException;
 import org.forgerock.openam.auth.node.api.TreeContext;
-import org.forgerock.openam.core.CoreWrapper;
 import org.forgerock.openam.sm.annotations.adapters.Password;
 import org.forgerock.util.i18n.PreferredLocales;
 import org.json.JSONArray;
@@ -62,7 +55,6 @@ import org.slf4j.LoggerFactory;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.assistedinject.Assisted;
 import com.sun.identity.authentication.callbacks.ScriptTextOutputCallback;
-import com.sun.identity.shared.debug.Debug;
 import com.sun.identity.sm.RequiredValueValidator;
 
 @Node.Metadata(outcomeProvider = ProgressiveProfileCompletionNode.ProgressiveProfileCompletionNodeOutcomeProvider.class,
@@ -70,15 +62,10 @@ import com.sun.identity.sm.RequiredValueValidator;
 public class ProgressiveProfileCompletionNode implements Node {
 
     private static final String BUNDLE = ProgressiveProfileCompletionNode.class.getName().replace(".", "/");
-    private final Logger logger = LoggerFactory.getLogger(ProgressiveProfileCompletionNode.class);
-    private final static String DEBUG_FILE = "ProgressiveProfileCompletionNode";
-    protected Debug debug = Debug.getInstance(DEBUG_FILE);
-
+    private final Logger logger = LoggerFactory.getLogger("amAuth");
     private final static String PPC_TRIGGERED_KEY = "ProgressiveProfileCompletionNode_PPC_Triggered";
     private final static String PPC_MAP_KEY = "ProgressiveProfileCompletionNode_PPC_Map";
-    
     private final Config config;
-    private final CoreWrapper coreWrapper;
 
     /**
      * Configuration for the node.
@@ -109,38 +96,37 @@ public class ProgressiveProfileCompletionNode implements Node {
      * CoreWrapper
      */
     @Inject
-    public ProgressiveProfileCompletionNode(@Assisted Config config, CoreWrapper coreWrapper) {
+    public ProgressiveProfileCompletionNode(@Assisted Config config) {
     	this.config = config;
-        this.coreWrapper = coreWrapper;
     }
 
     @Override
     public Action process(TreeContext context) throws NodeProcessException {
         JsonValue sharedState = context.sharedState;
         JsonValue transientState = context.transientState;
-    	debug.error("[" + DEBUG_FILE + "]: Start");
+        logger.debug("Start");
 
         if (context.getCallback(ConfirmationCallback.class).isPresent()) {
             ConfirmationCallback confirmationCallback = context.getCallback(ConfirmationCallback.class).get();
             if (confirmationCallback.getSelectedIndex() == 0) {
-            	debug.error("[" + DEBUG_FILE + "]: Saving...");
+            	logger.debug("Saving...");
             	
             	submitPPCResponse(sharedState.get(USERNAME).asString(), createPPCResponse(context));
             	sharedState.remove(PPC_MAP_KEY);
-            	debug.error("[" + DEBUG_FILE + "]: Completed.");
+            	logger.debug("Completed.");
             	
                 return Action.goTo(PPCOutcome.COMPLETED.name()).replaceSharedState(sharedState).replaceTransientState(transientState).build();
             }
-        	debug.error("[" + DEBUG_FILE + "]: Canceled.");
+            logger.debug("Canceled.");
             return Action.goTo(PPCOutcome.CANCELED.name()).replaceSharedState(sharedState).replaceTransientState(transientState).build();
         }
 
         if (wasPPCTriggered(sharedState)) {
-        	debug.error("[" + DEBUG_FILE + "]: Progressive profile completion initiated");
+        	logger.debug("Progressive profile completion initiated");
         	return Action.send(createPPCCallbacks(context)).replaceSharedState(sharedState).replaceTransientState(transientState).build();
         }
         
-    	debug.error("[" + DEBUG_FILE + "]: Nothing to do.");
+        logger.debug("Nothing to do.");
         return Action.goTo(PPCOutcome.CONTINUE.name()).replaceSharedState(sharedState).replaceTransientState(transientState).build();
 
     }
@@ -260,8 +246,7 @@ public class ProgressiveProfileCompletionNode implements Node {
     				return true;
     			}
     		} catch (JSONException e) {
-                debug.error("[" + DEBUG_FILE + "]: wasPPCTriggered: Error parsing auth response: " + e.getMessage());
-            	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
+    			logger.debug("wasPPCTriggered: Error parsing auth response: " + e.getMessage(), e);
     		}
     	}
     	else {
@@ -278,7 +263,6 @@ public class ProgressiveProfileCompletionNode implements Node {
     	String idmTermsAndConditionsUrl = String.format("%s/authentication?_action=login&_prettyPrint=true", idmBaseUrl);
         try {
             URL url = new URL(idmTermsAndConditionsUrl);
-            debug.error("[" + DEBUG_FILE + "]: url = " + url);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Accept", "*/*");
@@ -301,30 +285,21 @@ public class ProgressiveProfileCompletionNode implements Node {
             
     		int responseCode = conn.getResponseCode();
             if ( responseCode == 200 ) {
-                debug.error("[" + DEBUG_FILE + "]: authenticate: HTTP Success: response 200");
-                debug.error("[" + DEBUG_FILE + "]: response:" + response);
+            	logger.debug("authenticate: HTTP Success: response code - {}, response: {}", responseCode, response);
                 
                 conn.disconnect();
                 return new JSONObject(response);
             }
-            if (conn.getResponseCode() != 200) {
+            else {
             	String responseMessage = conn.getResponseMessage();
-                debug.error("[" + DEBUG_FILE + "]: authenticate: HTTP failed, response code: " + responseCode + " - " + responseMessage);
-                debug.error("[" + DEBUG_FILE + "]: response: " + response);
+            	logger.debug("authenticate: HTTP failed, response code: {} - {}, response: {}", responseCode, responseMessage, response);
                 
                 conn.disconnect();
                 return null;
             }
-        } catch (MalformedURLException e) {
-            debug.error("[" + DEBUG_FILE + "]: authenticate: " + e.getMessage());
-        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
-        } catch (IOException e) {
-            debug.error("[" + DEBUG_FILE + "]: authenticate: " + e.getMessage());
-        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
-        } catch (JSONException e) {
-            debug.error("[" + DEBUG_FILE + "]: authenticate: " + e.getMessage());
-        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
-		}
+        } catch (Throwable t) {
+        	logger.debug("authenticate: ", t);
+        }
         return null;
     }
     
@@ -410,39 +385,39 @@ public class ProgressiveProfileCompletionNode implements Node {
 				response.has("requirements") &&
 				response.getJSONObject("requirements").has("attributes")) 
 	    	{
-	        	debug.error("[" + DEBUG_FILE + "]: Progressive profile completion initiated:" + response);
+	    		logger.debug("Progressive profile completion initiated:" + response);
 	        	
-	        		JSONObject uiConfig = response.getJSONObject("requirements").getJSONObject("uiConfig");
-		        	String title = uiConfig.getString("displayName");
-		        	String message = uiConfig.getString("purpose");
-		        	String confirm = uiConfig.getString("buttonText");
-	
-		    		callbacks.add(new TextOutputCallback(TextOutputCallback.INFORMATION, title));
-					callbacks.add(new TextOutputCallback(TextOutputCallback.INFORMATION, message));
-	
-					Map<String, String> map = new HashMap<String, String>();
-		    		JSONArray attributes = response.getJSONObject("requirements").getJSONArray("attributes");
-		    		for (int i = 0; i < attributes.length(); i++) {
-						JSONObject attribute = attributes.getJSONObject(i);
-						String prompt = attribute.getJSONObject("schema").getString("description");
-						String defaultName = attribute.getString("value");
-			            debug.error("[" + DEBUG_FILE + "]: createPPCCallbacks: Adding NameCallback with prompt=" + prompt + " and defaultName=" + defaultName);
-						map.put(prompt, attribute.getString("name"));
-			    		if (null==defaultName || defaultName.length()==0)
-			    			callbacks.add(new NameCallback(prompt));
-			    		else
-			    			callbacks.add(new NameCallback(prompt, defaultName));
-					}
-		    		context.sharedState.put(PPC_MAP_KEY, map);
-					callbacks.add(new ConfirmationCallback(ConfirmationCallback.INFORMATION, new String[]{confirm, "Cancel"}, 0));
-	
-		    		String clientSideScriptExecutorFunction = createClientSideScriptExecutorFunction(createScript(attributes));
-		            ScriptTextOutputCallback scriptAndSelfSubmitCallback = new ScriptTextOutputCallback(clientSideScriptExecutorFunction);
-		            // insert at beginning of list
-		    		callbacks.add(0, scriptAndSelfSubmitCallback);
+        		JSONObject uiConfig = response.getJSONObject("requirements").getJSONObject("uiConfig");
+	        	String title = uiConfig.getString("displayName");
+	        	String message = uiConfig.getString("purpose");
+	        	String confirm = uiConfig.getString("buttonText");
+
+	    		callbacks.add(new TextOutputCallback(TextOutputCallback.INFORMATION, title));
+				callbacks.add(new TextOutputCallback(TextOutputCallback.INFORMATION, message));
+
+				Map<String, String> map = new HashMap<String, String>();
+	    		JSONArray attributes = response.getJSONObject("requirements").getJSONArray("attributes");
+	    		for (int i = 0; i < attributes.length(); i++) {
+					JSONObject attribute = attributes.getJSONObject(i);
+					String prompt = attribute.getJSONObject("schema").getString("description");
+					String defaultName = attribute.getString("value");
+					logger.debug("createPPCCallbacks: Adding NameCallback with prompt=" + prompt + " and defaultName=" + defaultName);
+					map.put(prompt, attribute.getString("name"));
+		    		if (null==defaultName || defaultName.length()==0)
+		    			callbacks.add(new NameCallback(prompt));
+		    		else
+		    			callbacks.add(new NameCallback(prompt, defaultName));
+				}
+	    		context.sharedState.put(PPC_MAP_KEY, map);
+				callbacks.add(new ConfirmationCallback(ConfirmationCallback.INFORMATION, new String[]{confirm, "Cancel"}, 0));
+
+	    		String clientSideScriptExecutorFunction = createClientSideScriptExecutorFunction(createScript(attributes));
+	            ScriptTextOutputCallback scriptAndSelfSubmitCallback = new ScriptTextOutputCallback(clientSideScriptExecutorFunction);
+	            // insert at beginning of list
+	    		callbacks.add(0, scriptAndSelfSubmitCallback);
 	        }
 		} catch (JSONException e) {
-            debug.error("[" + DEBUG_FILE + "]: createPPCCallbacks: " + e.getMessage(), e);
+			logger.debug("createPPCCallbacks: ", e);
 		}
     	return callbacks;
     }
@@ -487,8 +462,7 @@ public class ProgressiveProfileCompletionNode implements Node {
 				    	.append("    var ppc_field_").append(i+3).append(" = document.getElementsByName('callback_").append(i+3).append("')[0];\n")
 				    	.append("    ppc_field_").append(i+3).append(".value = \"").append(attribute.get("value")).append("\";\n");
 			} catch (JSONException e) {
-	            debug.error("[" + DEBUG_FILE + "]: createScript: " + e.getMessage());
-	        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
+				logger.debug("createScript: ", e);
 			}
 		}
     	
@@ -510,7 +484,6 @@ public class ProgressiveProfileCompletionNode implements Node {
     	String idmTermsAndConditionsUrl = String.format("%s/selfservice/profile?_prettyPrint=true", idmBaseUrl);
         try {
             URL url = new URL(idmTermsAndConditionsUrl);
-            debug.error("[" + DEBUG_FILE + "]: url = " + url);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "*/*");
@@ -532,30 +505,21 @@ public class ProgressiveProfileCompletionNode implements Node {
             
             int responseCode = conn.getResponseCode();
             if ( responseCode == 200 ) {
-                debug.error("[" + DEBUG_FILE + "]: getRequirements: HTTP Success: response 200");
-                debug.error("[" + DEBUG_FILE + "]: response:" + response);
+            	logger.debug("readPPCRequirements: HTTP Success: response code - {}, response: {}", responseCode, response);
                 
                 conn.disconnect();
                 return new JSONObject(response);
             }
-            if (conn.getResponseCode() != 200) {
+            else {
             	String responseMessage = conn.getResponseMessage();
-                debug.error("[" + DEBUG_FILE + "]: getRequirements: HTTP failed, response code: " + responseCode + " - " + responseMessage);
-                debug.error("[" + DEBUG_FILE + "]: response:" + response);
+            	logger.debug("readPPCRequirements: HTTP failed, response code: {} - {}, response: {}", responseCode, responseMessage, response);
                 
                 conn.disconnect();
                 return null;
             }
-        } catch (MalformedURLException e) {
-            debug.error("[" + DEBUG_FILE + "]: readPPCRequirements: " + e.getMessage());
-        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
-        } catch (IOException e) {
-            debug.error("[" + DEBUG_FILE + "]: readPPCRequirements: " + e.getMessage());
-        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
-        } catch (JSONException e) {
-            debug.error("[" + DEBUG_FILE + "]: readPPCRequirements: " + e.getMessage());
-        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
-		}
+        } catch (Throwable t) {
+        	logger.debug("readPPCRequirements: ", t);
+        }
         return null;
     }
     
@@ -611,25 +575,24 @@ public class ProgressiveProfileCompletionNode implements Node {
 		Map<String, String> map = (Map<String, String>) context.sharedState.get(PPC_MAP_KEY).getObject();
     	StringBuffer requirements = new StringBuffer()
     	.append("{\n");
-    	if (false) {
-            requirements
-        	.append("	\"token\":\"ssssss\"\n");
-    	}
+//    	if (false) {
+//            requirements
+//        	.append("	\"token\":\"ssssss\"\n");
+//    	}
     	requirements
     	.append("	\"input\":{\n")
     	.append("		\"attributes\":{\n");
     	Iterator<? extends Callback> iterator = context.getCallbacks(NameCallback.class).iterator();
         while (iterator.hasNext()) {
             NameCallback callback = (NameCallback) iterator.next();
-            requirements
-        	.append("			\"").append(map.get(callback.getPrompt())).append("\":\"").append(callback.getName()).append("\"").append(iterator.hasNext() ? "," : "").append("\n");
+            requirements.append("			\"").append(map.get(callback.getPrompt())).append("\":\"").append(callback.getName()).append("\"").append(iterator.hasNext() ? "," : "").append("\n");
         }
         requirements
     	.append("		}\n")
     	.append("	}\n")
     	.append("}");
 
-        debug.error("[" + DEBUG_FILE + "]: createPPCResponse: " + requirements.toString());
+        logger.debug("createPPCResponse: {}", requirements.toString());
         
     	return requirements.toString();
     }
@@ -641,7 +604,6 @@ public class ProgressiveProfileCompletionNode implements Node {
     	String idmTermsAndConditionsUrl = String.format("%s/selfservice/profile?_action=submitRequirements&_prettyPrint=true", idmBaseUrl);
         try {
             URL url = new URL(idmTermsAndConditionsUrl);
-            debug.error("[" + DEBUG_FILE + "]: url = " + url);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Accept", "*/*");
@@ -672,35 +634,22 @@ public class ProgressiveProfileCompletionNode implements Node {
             
     		int responseCode = conn.getResponseCode();
             if ( responseCode == 200 ) {
-                debug.error("[" + DEBUG_FILE + "]: submitProfileRequirements: HTTP Success: response 200");
-                debug.error("[" + DEBUG_FILE + "]: submitProfileRequirements: " + response);
+            	logger.debug("submitPPCResponse: HTTP Success: response code - {}, response: {}", responseCode, response);
                 
                 conn.disconnect();
                 return true;
             }
-            if (conn.getResponseCode() != 200) {
+            else {
             	String responseMessage = conn.getResponseMessage();
-                debug.error("[" + DEBUG_FILE + "]: submitProfileRequirements: HTTP failed, response code: " + responseCode + " - " + responseMessage);
-                debug.error("[" + DEBUG_FILE + "]: submitProfileRequirements: " + response);
+            	logger.debug("submitPPCResponse: HTTP failed, response code: {} - {}, response: {}", responseCode, responseMessage, response);
                 
                 conn.disconnect();
                 return false;
             }
-        } catch (MalformedURLException e) {
-            debug.error("[" + DEBUG_FILE + "]: submitProfileRequirements: " + e.getMessage());
-        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
-        } catch (IOException e) {
-            debug.error("[" + DEBUG_FILE + "]: submitProfileRequirements: " + e.getMessage());
-        	debug.error("[" + DEBUG_FILE + "]: " + getStackTrace(e));
+        } catch (Throwable t) {
+        	logger.debug("submitPPCResponse: ", t);
         }
         return false;
-    }
-    
-    private String getStackTrace(Exception e) {
-    	StringWriter sw = new StringWriter();
-    	PrintWriter pw = new PrintWriter(sw);
-    	e.printStackTrace(pw);
-    	return sw.toString();
     }
 
 }
