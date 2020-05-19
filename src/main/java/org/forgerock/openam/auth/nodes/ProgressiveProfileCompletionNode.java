@@ -63,6 +63,7 @@ public class ProgressiveProfileCompletionNode implements Node {
 
     private static final String BUNDLE = ProgressiveProfileCompletionNode.class.getName().replace(".", "/");
     private final Logger logger = LoggerFactory.getLogger("amAuth");
+    private final static String PPC_LOG_ID = "ProgressiveProfileCompletionNode";
     private final static String PPC_TRIGGERED_KEY = "ProgressiveProfileCompletionNode_PPC_Triggered";
     private final static String PPC_MAP_KEY = "ProgressiveProfileCompletionNode_PPC_Map";
     private final Config config;
@@ -104,29 +105,29 @@ public class ProgressiveProfileCompletionNode implements Node {
     public Action process(TreeContext context) throws NodeProcessException {
         JsonValue sharedState = context.sharedState;
         JsonValue transientState = context.transientState;
-        logger.debug("Start");
+        logger.debug("{}: Start", PPC_LOG_ID);
 
         if (context.getCallback(ConfirmationCallback.class).isPresent()) {
             ConfirmationCallback confirmationCallback = context.getCallback(ConfirmationCallback.class).get();
             if (confirmationCallback.getSelectedIndex() == 0) {
-            	logger.debug("Saving...");
+            	logger.debug("{}: Saving...", PPC_LOG_ID);
             	
             	submitPPCResponse(sharedState.get(USERNAME).asString(), createPPCResponse(context));
             	sharedState.remove(PPC_MAP_KEY);
-            	logger.debug("Completed.");
+            	logger.debug("{}: Completed.", PPC_LOG_ID);
             	
                 return Action.goTo(PPCOutcome.COMPLETED.name()).replaceSharedState(sharedState).replaceTransientState(transientState).build();
             }
-            logger.debug("Canceled.");
+            logger.debug("{}: Canceled.", PPC_LOG_ID);
             return Action.goTo(PPCOutcome.CANCELED.name()).replaceSharedState(sharedState).replaceTransientState(transientState).build();
         }
 
         if (wasPPCTriggered(sharedState)) {
-        	logger.debug("Progressive profile completion initiated");
+        	logger.debug("{}: Progressive profile completion initiated", PPC_LOG_ID);
         	return Action.send(createPPCCallbacks(context)).replaceSharedState(sharedState).replaceTransientState(transientState).build();
         }
         
-        logger.debug("Nothing to do.");
+        logger.debug("{}: Nothing to do.", PPC_LOG_ID);
         return Action.goTo(PPCOutcome.CONTINUE.name()).replaceSharedState(sharedState).replaceTransientState(transientState).build();
 
     }
@@ -237,7 +238,7 @@ public class ProgressiveProfileCompletionNode implements Node {
     
     private boolean wasPPCTriggered(JsonValue sharedState) {
     	if (sharedState.get(new JsonPointer(PPC_TRIGGERED_KEY)) == null) {
-    		JSONObject response = authenticate(sharedState.get(USERNAME).asString());
+    		JSONObject response = authenticateAs(sharedState.get(USERNAME).asString());
         	try {
     			if (null != response &&
     				response.has("authorization") && 
@@ -246,7 +247,7 @@ public class ProgressiveProfileCompletionNode implements Node {
     				return true;
     			}
     		} catch (JSONException e) {
-    			logger.debug("wasPPCTriggered: Error parsing auth response: " + e.getMessage(), e);
+    			logger.debug(PPC_LOG_ID + ": wasPPCTriggered: Error parsing auth response: " + e.getMessage(), e);
     		}
     	}
     	else {
@@ -256,7 +257,7 @@ public class ProgressiveProfileCompletionNode implements Node {
     	return false;
     }
     
-    private JSONObject authenticate(String username) {
+    private JSONObject authenticateAs(String username) {
     	String idmBaseUrl = config.idmBaseUrl();
     	String idmAdminUser = config.idmAdminUser();
     	String idmAdminPassword = new String(config.idmAdminPassword());
@@ -285,20 +286,28 @@ public class ProgressiveProfileCompletionNode implements Node {
             
     		int responseCode = conn.getResponseCode();
             if ( responseCode == 200 ) {
-            	logger.debug("authenticate: HTTP Success: response code - {}, response: {}", responseCode, response);
+            	logger.debug("{}: authenticateAs: HTTP Success: response code - {}, response: {}", PPC_LOG_ID, responseCode, response);
                 
                 conn.disconnect();
-                return new JSONObject(response);
+                
+                JSONObject jsonResponse = new JSONObject(response);
+                String authId = jsonResponse.getString("authenticationId");
+                if ( username.equalsIgnoreCase(authId) ) {
+                	return jsonResponse;
+                }
+                
+                logger.error("{}: authenticateAs: runAs failed! Tried to authenticate as {} but got session for {}. Check your IDM runAs configuration in authentication.json.", PPC_LOG_ID, username, authId);
+                return null;
             }
             else {
             	String responseMessage = conn.getResponseMessage();
-            	logger.debug("authenticate: HTTP failed, response code: {} - {}, response: {}", responseCode, responseMessage, response);
+            	logger.error("authenticateAs: HTTP failed, response code: {} - {}, response: {}", PPC_LOG_ID, responseCode, responseMessage, response);
                 
                 conn.disconnect();
                 return null;
             }
         } catch (Throwable t) {
-        	logger.debug("authenticate: ", t);
+        	logger.error(PPC_LOG_ID + ": authenticateAs: ", t);
         }
         return null;
     }
@@ -385,7 +394,7 @@ public class ProgressiveProfileCompletionNode implements Node {
 				response.has("requirements") &&
 				response.getJSONObject("requirements").has("attributes")) 
 	    	{
-	    		logger.debug("Progressive profile completion initiated:" + response);
+	    		logger.debug("{}: createPPCCallbacks: Progressive profile completion initiated: {}", PPC_LOG_ID, response);
 	        	
         		JSONObject uiConfig = response.getJSONObject("requirements").getJSONObject("uiConfig");
 	        	String title = uiConfig.getString("displayName");
@@ -399,7 +408,7 @@ public class ProgressiveProfileCompletionNode implements Node {
 	    		JSONArray attributes = response.getJSONObject("requirements").getJSONArray("attributes");
 	    		for (int i = 0; i < attributes.length(); i++) {
 					JSONObject attribute = attributes.getJSONObject(i);
-					String prompt = attribute.getJSONObject("schema").getString("description");
+					String prompt = attribute.getJSONObject("schema").getString("title");
 					String defaultName = attribute.getString("value");
 					logger.debug("createPPCCallbacks: Adding NameCallback with prompt=" + prompt + " and defaultName=" + defaultName);
 					map.put(prompt, attribute.getString("name"));
@@ -417,7 +426,7 @@ public class ProgressiveProfileCompletionNode implements Node {
 	    		callbacks.add(0, scriptAndSelfSubmitCallback);
 	        }
 		} catch (JSONException e) {
-			logger.debug("createPPCCallbacks: ", e);
+			logger.error(PPC_LOG_ID + ": createPPCCallbacks: ", e);
 		}
     	return callbacks;
     }
@@ -462,7 +471,7 @@ public class ProgressiveProfileCompletionNode implements Node {
 				    	.append("    var ppc_field_").append(i+3).append(" = document.getElementsByName('callback_").append(i+3).append("')[0];\n")
 				    	.append("    ppc_field_").append(i+3).append(".value = \"").append(attribute.get("value")).append("\";\n");
 			} catch (JSONException e) {
-				logger.debug("createScript: ", e);
+				logger.error(PPC_LOG_ID + ": createScript: ", e);
 			}
 		}
     	
@@ -505,20 +514,20 @@ public class ProgressiveProfileCompletionNode implements Node {
             
             int responseCode = conn.getResponseCode();
             if ( responseCode == 200 ) {
-            	logger.debug("readPPCRequirements: HTTP Success: response code - {}, response: {}", responseCode, response);
+            	logger.debug("{}: readPPCRequirements: HTTP Success: response code - {}, response: {}", PPC_LOG_ID, responseCode, response);
                 
                 conn.disconnect();
                 return new JSONObject(response);
             }
             else {
             	String responseMessage = conn.getResponseMessage();
-            	logger.debug("readPPCRequirements: HTTP failed, response code: {} - {}, response: {}", responseCode, responseMessage, response);
+            	logger.debug("{}: readPPCRequirements: HTTP failed, response code: {} - {}, response: {}", PPC_LOG_ID, responseCode, responseMessage, response);
                 
                 conn.disconnect();
                 return null;
             }
         } catch (Throwable t) {
-        	logger.debug("readPPCRequirements: ", t);
+        	logger.debug(PPC_LOG_ID + ": readPPCRequirements: ", t);
         }
         return null;
     }
@@ -592,7 +601,7 @@ public class ProgressiveProfileCompletionNode implements Node {
     	.append("	}\n")
     	.append("}");
 
-        logger.debug("createPPCResponse: {}", requirements.toString());
+        logger.debug("{}: createPPCResponse: {}",PPC_LOG_ID, requirements.toString());
         
     	return requirements.toString();
     }
@@ -634,20 +643,20 @@ public class ProgressiveProfileCompletionNode implements Node {
             
     		int responseCode = conn.getResponseCode();
             if ( responseCode == 200 ) {
-            	logger.debug("submitPPCResponse: HTTP Success: response code - {}, response: {}", responseCode, response);
+            	logger.debug("{}: submitPPCResponse: HTTP Success: response code - {}, response: {}", PPC_LOG_ID, responseCode, response);
                 
                 conn.disconnect();
                 return true;
             }
             else {
             	String responseMessage = conn.getResponseMessage();
-            	logger.debug("submitPPCResponse: HTTP failed, response code: {} - {}, response: {}", responseCode, responseMessage, response);
+            	logger.error("{}: submitPPCResponse: HTTP failed, response code: {} - {}, response: {}", PPC_LOG_ID, responseCode, responseMessage, response);
                 
                 conn.disconnect();
                 return false;
             }
         } catch (Throwable t) {
-        	logger.debug("submitPPCResponse: ", t);
+        	logger.error(PPC_LOG_ID + ": submitPPCResponse: ", t);
         }
         return false;
     }
