@@ -90,7 +90,7 @@ The following JSON configuration snippet shows what you need to make this node w
 <table>
   <tr valign="top">
   	<td width="7%">1.0.2</td>
-  	<td width="13%">May 19, 2020</td>
+  	<td width="15%">May 19, 2020</td>
   	<td width="80%">Maintenance release:<ul><li>Debug and error log messages properly identify the node they are coming from by adding the prefix: "ProgressiveProfileCompletionNode" to every message.</li><li>Detect and log runAs configuration issues in IDM. E.g.: <i>ERROR: ProgressiveProfileCompletionNode: runAs failed! Tried to authenticate as dave@fr.com but got session for openidm-admin. Check your IDM runAs configuration in authentication.json.</i></li><li>Use the value in "Readable Title" instead of "Description" of the IDM managed object to render the form fields.</li></ul></td>
   </tr>
   <tr valign="top">
